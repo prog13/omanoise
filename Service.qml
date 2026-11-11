@@ -211,9 +211,17 @@ Item {
     }
   }
 
+  // build.sh writes into the plugin folder, and every write there makes the
+  // shell reload this plugin, which kills this service's processes. So the
+  // build runs in its own session (setsid --fork survives this process being
+  // killed) and logs to a file rather than a pipe that would close under it.
   Process {
     id: buildProc
-    command: [root.pluginDir + "/build.sh"]
+    command: ["sh", "-c",
+      "log=\"${XDG_RUNTIME_DIR:-/tmp}/omanoise-build.log\"; "
+        + "setsid --fork --wait \"$1\" </dev/null >\"$log\" 2>&1; rc=$?; "
+        + "[ \"$rc\" -eq 0 ] || tail -n 3 \"$log\" >&2; exit \"$rc\"",
+      "omanoise", root.pluginDir + "/build.sh"]
     stderr: StdioCollector { id: buildErr; waitForEnd: true }
     onExited: function(code) {
       root.building = false
